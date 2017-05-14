@@ -22,6 +22,7 @@ class RNNNumpy:
         word_dim : 输入词向量的维度，如果是one hot，显然应该等于Input Layer 的结点数
         hidden_dim : 隐层的结点数
         bptt_truncate：BPTT反向传播的时间范围
+        word_dim 是词汇表的大小
         """
 
         # Assign instance variables
@@ -29,6 +30,7 @@ class RNNNumpy:
         self.hidden_dim = hidden_dim
         self.bptt_truncate = bptt_truncate
         
+        #这么初始化是出于什么考虑
         # Randomly initialize the network parameters
         self.U = np.random.uniform(-np.sqrt(1./word_dim), np.sqrt(1./word_dim), (hidden_dim, word_dim))
         self.V = np.random.uniform(-np.sqrt(1./hidden_dim), np.sqrt(1./hidden_dim), (word_dim, hidden_dim))
@@ -41,6 +43,7 @@ class RNNNumpy:
         Parameters
         ----------
         x : 输入句子对应的词向量list,其长度等于句子中的word数目，每一个word的词向量作为一个时刻t的网络输入
+        这里说的word的词向量其实就是该word在词汇表中的索引
         
         Returns
         -------
@@ -54,6 +57,7 @@ class RNNNumpy:
         T = len(x)
         # During forward propagation we save all hidden states in s because need them later.
         # We add one additional element for the initial hidden, which we set to 0
+        #隐层添加一个时刻是为了在第一步进行前向传播时有值可用
         s = np.zeros((T + 1, self.hidden_dim))
         s[-1] = np.zeros(self.hidden_dim)
         # The outputs at each time step. Again, we save them for later.
@@ -61,6 +65,9 @@ class RNNNumpy:
         # For each time step...
         for t in np.arange(T):
             # Note that we are indxing U by x[t]. This is the same as multiplying U with a one-hot vector.
+            #s[t-1]是一个列向量，长度为hidden_dim
+            #U[:x[t]]是一个列向量
+            #W.dot(s[t-1])是一个列向量
             s[t] = np.tanh(self.U[:,x[t]] + self.W.dot(s[t-1]))
             o[t] = softmax(self.V.dot(s[t]))
         return [o, s]
@@ -79,8 +86,12 @@ class RNNNumpy:
         # For each sentence...
         for i in np.arange(len(y)):
             o, s = self.forward_propagation(x[i])
+            print "o", o
+            print "s", s
             # We only care about our prediction of the "correct" words
             correct_word_predictions = o[np.arange(len(y[i])), y[i]]
+            print "correct_word_predictions"
+            print correct_word_predictions
             # Add to the loss based on how off we were
             L += -1 * np.sum(np.log(correct_word_predictions))
         return L
@@ -129,11 +140,21 @@ class RNNNumpy:
         dLdW = np.zeros(self.W.shape)
         delta_o = o
         delta_o[np.arange(len(y)), y] -= 1.
+        print "type(delta_o):", type(delta_o)
+        print "delta_o.shape:", delta_o.shape
+        print "s.shape", s.shape
         # For each output backwards...
-        for t in np.arange(T)[::-1]:
+        for t in np.arange(T)[::-1]: #由后往前, 句子中的每个单词
             dLdV += np.outer(delta_o[t], s[t].T)
             # Initial delta calculation
             delta_t = self.V.T.dot(delta_o[t]) * (1 - (s[t] ** 2))
+            print "V.T.shape", self.V.T.shape
+            print "delta_o[t].shape:", delta_o[t].shape
+            print "type(delta_o[t]):", type(delta_o[t])
+            print "delta_t.shape:", delta_t.shape
+            print "self.V.T.dot(delta_o[t]) ", self.V.T.dot(delta_o[t]).shape
+            print "s[t]", s[t].shape
+
             # Backpropagation through time (for at most self.bptt_truncate steps)
             for bptt_step in np.arange(max(0, t-self.bptt_truncate), t+1)[::-1]:
                 # print "Backpropagation step t=%d bptt step=%d " % (t, bptt_step)
@@ -198,5 +219,5 @@ class RNNNumpy:
         self.V -= learning_rate * dLdV
         self.W -= learning_rate * dLdW
     
-#     RNNNumpy.sgd_step = numpy_sdg_step
+#     RNNNumpy.sgd_step = numpy_sdg_ste
 
